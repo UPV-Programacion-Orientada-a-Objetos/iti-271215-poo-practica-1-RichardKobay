@@ -1,13 +1,12 @@
 package edu.upvictoria.fpoo;
 
-/**
- * Hello world!
- *
- */
-public class App 
+import edu.upvictoria.fpoo.utils.FileUtils;
+
+public class App
 {
     public static void main( String[] args )
     {
         System.out.println( "Hello World!" );
+        FileUtils fileUtils = new FileUtils();
     }
 }
