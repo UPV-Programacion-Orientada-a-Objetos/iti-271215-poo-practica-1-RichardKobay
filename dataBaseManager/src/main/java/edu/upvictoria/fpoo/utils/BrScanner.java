@@ -62,4 +62,16 @@ public class BrScanner {
         return line;
     }
 
+    public static String readMultipleLines() {
+        StringBuilder line = new StringBuilder();
+
+        String newLine = "";
+        while (!newLine.contains(";")) {
+            newLine = readLine();
+            line.append(newLine);
+            line.append(" ");
+        }
+
+        return line.toString();
+    }
 }
