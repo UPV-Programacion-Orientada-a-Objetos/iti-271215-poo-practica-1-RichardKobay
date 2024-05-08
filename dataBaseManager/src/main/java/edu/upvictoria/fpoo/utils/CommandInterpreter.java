@@ -23,14 +23,6 @@ public class CommandInterpreter {
         this.folder = new IOUtils().openFolder(folderPath);
     }
 
-    public File getFolder() {
-        return folder;
-    }
-
-    public void setFolder(File folder) {
-        this.folder = folder;
-    }
-
     public void readFolder() {
         System.out.println("Give me the folder path");
         String folderPath = BrScanner.readLine();
@@ -89,6 +81,11 @@ public class CommandInterpreter {
                 return;
             }
 
+            if (command.equals("DROP TABLE")) {
+                dropTable(value);
+                return;
+            }
+
             throw new SQLSyntaxException("Not a valid SQL syntax");
         }
     }
@@ -140,8 +137,19 @@ public class CommandInterpreter {
         }
     }
 
-    public void dropTable (String tableName) {
-        
+    public void dropTable (String tableName) throws SQLSyntaxException {
+        if (tableName.split(" ").length > 1)
+            throw new SQLSyntaxException("Not a valid table name");
+
+        String csvPath = folder + File.separator + tableName + ".csv";
+
+        try {
+            FileUtils.deleteFile(csvPath);
+        } catch (FileNotFoundException e) {
+            throw new SQLSyntaxException("The table does not exist");
+        }
+
+        System.out.println("Table dropped successfully");
     }
 }
 

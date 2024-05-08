@@ -23,4 +23,13 @@ public class FileUtils {
         FileUtils fileUtils = new FileUtils();
         return fileUtils.getFileFromResourceAsStream(fileName);
     }
+
+    public static boolean deleteFile(String filePath) throws FileNotFoundException {
+        File file = new File(filePath);
+
+        if (file.delete())
+            return true;
+
+        throw new FileNotFoundException("File not found");
+    }
 }
