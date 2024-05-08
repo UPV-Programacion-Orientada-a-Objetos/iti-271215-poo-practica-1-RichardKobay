@@ -104,8 +104,7 @@ public class CommandInterpreter {
         String columnsText = matcher.group(2);
 
         String[] columns = columnsText.toLowerCase().split(",");
-
-        List<TableColumn> columnList = new ArrayList<>();
+        List<String> columnsList = new ArrayList<>();
 
         for (String column : columns) {
             Pattern patternColumn = Pattern.compile("\\s*(\\w+)\\s+");
@@ -115,12 +114,7 @@ public class CommandInterpreter {
                 throw new SQLSyntaxException("Not a valid sql syntax");
 
             String columnName = matcherColumn.group(1);
-            String columnSettings = column.substring(matcherColumn.end()).trim();
-            String dataType = getDataType(columnName, columnSettings);
-            boolean nullable = !columnSettings.contains("not null");
-            boolean isPrimaryKey = columnSettings.contains("primary key");
-
-            columnList.add(new TableColumn(columnName, dataType, nullable, isPrimaryKey));
+            columnsList.add(columnName);
         }
 
         String csvPath = folder + File.separator + tableName + ".csv";
@@ -133,126 +127,16 @@ public class CommandInterpreter {
         }
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(csvPath))) {
-            for (TableColumn column : columnList) {
-                writer.write(column.getColumnName() + ",");
-            }
-            writer.newLine();
+            int i =  0;
+            for (String column : columnsList) {
+                writer.write(column);
 
-            for (TableColumn column : columnList) {
-                writer.write(column.getDataType() + ",");
-            }
-            writer.newLine();
-
-            for (TableColumn column : columnList) {
-                writer.write(column.isNullable() + ",");
-            }
-            writer.newLine();
-
-            for (TableColumn column : columnList) {
-                writer.write(String.valueOf(column.isPrimaryKey()));
+                if (i < columnsList.size() - 1)
+                    writer.write(",");
+                i++;
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    private String getDataType (String columnName, String columnSettings) throws SQLSyntaxException {
-        // String data types
-        if (columnSettings.contains("char"))
-            return "char";
-        if (columnSettings.contains("varchar"))
-            return "varchar";
-        if (columnSettings.contains("tinytext"))
-            return "tinytext";
-        if (columnSettings.contains("text"))
-            return "text";
-        if (columnSettings.contains("longtext"))
-            return "longtext";
-
-        // Numeric data types
-        if (columnSettings.contains("bit"))
-            return "bit";
-        if (columnSettings.contains("tinyint"))
-            return "tinyint";
-        if (columnSettings.contains("bool"))
-            return "bool";
-        if (columnSettings.contains("boolean"))
-            return "boolean";
-        if (columnSettings.contains("int"))
-            return "int";
-        if (columnSettings.contains("integer"))
-            return "integer";
-        if (columnSettings.contains("float"))
-            return "float";
-        if (columnSettings.contains("double"))
-            return "double";
-        if (columnSettings.contains("double precision"))
-            return "double precision";
-        if (columnSettings.contains("decimal"))
-            return "decimal";
-        if (columnSettings.contains("dec"))
-            return "dec";
-
-        // Date data types
-        if (columnSettings.contains("date"))
-            return "date";
-        if (columnSettings.contains("datetime"))
-            return "datetime";
-        if (columnSettings.contains("time"))
-            return "time";
-        if (columnSettings.contains("timestamp"))
-            return "timestamp";
-        if (columnSettings.contains("year"))
-            return "year";
-
-        throw new SQLSyntaxException("Not a datatype provided for column " + columnName);
-    }
-
-    private static class NewTable {
-        private final String tableName;
-        private final List<String> columns;
-
-        public NewTable(String tableName, List<String> columns) {
-            this.tableName = tableName;
-            this.columns = columns;
-        }
-
-        public String getTableName() {
-            return tableName;
-        }
-
-        public List<String> getColumns() {
-            return columns;
-        }
-    }
-
-    private static class TableColumn {
-        private final String columnName;
-        private final String dataType;
-        private final boolean nullable;
-        private final boolean isPrimaryKey;
-
-        public TableColumn(String columnName, String dataType, boolean nullable, boolean isPrimaryKey) {
-            this.columnName = columnName;
-            this.dataType = dataType;
-            this.nullable = nullable;
-            this.isPrimaryKey = isPrimaryKey;
-        }
-
-        public String getColumnName() {
-            return columnName;
-        }
-
-        public String getDataType() {
-            return dataType;
-        }
-
-        public boolean isNullable() {
-            return nullable;
-        }
-
-        public boolean isPrimaryKey() {
-            return isPrimaryKey;
         }
     }
 
