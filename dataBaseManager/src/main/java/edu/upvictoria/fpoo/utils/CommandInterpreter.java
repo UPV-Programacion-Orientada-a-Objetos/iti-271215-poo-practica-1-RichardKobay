@@ -5,7 +5,9 @@ import edu.upvictoria.fpoo.exceptions.SQLSyntaxException;
 
 import javax.naming.NoPermissionException;
 import java.io.*;
+import java.nio.file.Files;
 import java.nio.file.NotDirectoryException;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -55,6 +57,13 @@ public class CommandInterpreter {
         if (sqlQuery.trim().toLowerCase().startsWith("use")) {
             String key = "USE";
             String value = sqlQuery.trim().split(" ")[1].replace(";", "");
+            resultMap.put(key, value);
+            return resultMap;
+        }
+
+        if (sqlQuery.trim().toLowerCase().startsWith("show tables")) {
+            String key = "SHOW TABLES";
+            String value = "";
             resultMap.put(key, value);
             return resultMap;
         }
@@ -111,8 +120,47 @@ public class CommandInterpreter {
                 }
                 return;
             }
+
+            if (command.equalsIgnoreCase("SHOW TABLES")) {
+                try {
+                    showTables();
+                } catch (Exception e) {
+                    System.err.println(e.getMessage());
+                }
+                return;
+            }
             throw new SQLSyntaxException("Not a valid SQL syntax");
         }
+    }
+
+    public void showTables() {
+        List<String> tables = new ArrayList<>();
+        try {
+            Files.walk(Paths.get(this.folder.toURI()))
+                    .filter(Files::isRegularFile)
+                    .forEach(path -> tables.add(folder + "/" + path.getFileName()));
+        } catch (IOException e) {
+            System.err.println("There was an error while reading the file");
+        }
+
+        for (String table : tables) {
+            try {
+                List<String> tableColumns =  getTableColumns(table);
+                System.out.println("---------------TABLE---------------");
+                System.out.printf("Name: %29s\n", getTableName(table));
+                for (String column : tableColumns) {
+                    System.out.printf("Column: %27s\n", column);
+                }
+                System.out.println();
+            } catch (SQLSyntaxException e) {
+                System.err.println("SQLSyntaxException: " + e.getMessage());
+            }
+        }
+    }
+
+    public String getTableName (String path) {
+        List<String> tableName = Arrays.asList(path.trim().replace(".csv", "").split("/"));
+        return tableName.get(tableName.size() - 1);
     }
 
     public void use(String folderPath) throws NotADBException, NotDirectoryException, FileNotFoundException, NoPermissionException {
