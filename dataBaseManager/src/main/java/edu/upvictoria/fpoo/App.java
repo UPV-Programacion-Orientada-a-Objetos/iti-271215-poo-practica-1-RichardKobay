@@ -18,7 +18,8 @@ public class App
         CommandInterpreter commandInterpreter = null;
         try {
             commandInterpreter = new CommandInterpreter("/home/soriane/Desktop/new_db");
-            commandInterpreter.readCommand();
+            while (true)
+                commandInterpreter.readCommand();
         } catch (NotDirectoryException | FileNotFoundException | NoPermissionException | NotADBException e) {
             System.err.println(e.getMessage());
         }

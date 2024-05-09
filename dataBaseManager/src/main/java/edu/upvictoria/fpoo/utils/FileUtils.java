@@ -32,4 +32,13 @@ public class FileUtils {
 
         throw new FileNotFoundException("File not found");
     }
+
+    public static void addToFile(String filePath, String content) {
+        try (BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(filePath, true))) {
+            bufferedWriter.write(content);
+            bufferedWriter.newLine();
+        } catch (IOException e) {
+            System.err.println("There was an error writing to the file: " + filePath);
+        }
+    }
 }
