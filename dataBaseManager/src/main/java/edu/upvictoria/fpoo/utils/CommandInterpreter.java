@@ -98,6 +98,14 @@ public class CommandInterpreter {
                 }
             }
 
+            if (sentence.trim().toLowerCase().startsWith("update")) {
+                try {
+                    update(sentence);
+                } catch (EmptySelectException | PleaseDoNotEreaseEverithinException e) {
+                    System.err.println(e.getMessage());
+                }
+            }
+
         } catch (SQLSyntaxException e) {
             System.err.println(e.getMessage());
         }
@@ -151,6 +159,10 @@ public class CommandInterpreter {
         }
 
         return resultMap;
+    }
+
+    public void update (String query) throws SQLSyntaxException, EmptySelectException, PleaseDoNotEreaseEverithinException {
+
     }
 
     public void delete(Map<String, String> query) throws SQLSyntaxException, EmptySelectException, PleaseDoNotEreaseEverithinException {
