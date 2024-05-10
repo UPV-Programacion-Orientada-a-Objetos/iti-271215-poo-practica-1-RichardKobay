@@ -2,6 +2,7 @@ package edu.upvictoria.fpoo.utils;
 
 import edu.upvictoria.fpoo.exceptions.EmptySelectException;
 import edu.upvictoria.fpoo.exceptions.NotADBException;
+import edu.upvictoria.fpoo.exceptions.PleaseDoNotEreaseEverithinException;
 import edu.upvictoria.fpoo.exceptions.SQLSyntaxException;
 
 import javax.naming.NoPermissionException;
@@ -79,6 +80,19 @@ public class CommandInterpreter {
                 }
             }
 
+            if (sentence.trim().toLowerCase().startsWith("delete")) {
+                Map<String, String> parsedQuery = parseSQLQuery(sentence);
+                try {
+                    delete(parsedQuery);
+                } catch (SQLSyntaxException e) {
+                    System.err.println(e.getMessage());
+                } catch (EmptySelectException e) {
+                    System.out.println(ConsoleColors.ANSI_CYAN_BACKGROUND + ConsoleColors.ANSI_BLACK + e.getMessage() + ConsoleColors.ANSI_RESET);
+                } catch (PleaseDoNotEreaseEverithinException e) {
+                    System.out.println(ConsoleColors.ANSI_RED_BACKGROUND + ConsoleColors.ANSI_BLACK + e.getMessage() + ConsoleColors.ANSI_RESET);
+                }
+            }
+
         } catch (SQLSyntaxException e) {
             System.err.println(e.getMessage());
         }
@@ -134,6 +148,61 @@ public class CommandInterpreter {
         return resultMap;
     }
 
+    public void delete(Map<String, String> query) throws SQLSyntaxException, EmptySelectException, PleaseDoNotEreaseEverithinException {
+        String delete = "";
+        String tableName = "";
+        String where = "";
+
+        for (Map.Entry<String, String> entry : query.entrySet()) {
+            String command = entry.getKey();
+            String value = entry.getValue();
+
+            if (command.equalsIgnoreCase("delete"))
+                delete = value;
+
+            if (command.equalsIgnoreCase("from"))
+                tableName = value;
+
+            if (command.equalsIgnoreCase("where"))
+                where = value;
+        }
+
+        String tablePath = folder + File.separator + tableName + ".csv";
+        List<String> initialTableColumns = getTableColumns(tablePath);
+
+        Table table = new Table(tableName, initialTableColumns, tablePath);
+
+        List<Integer> indexes = new ArrayList<>();
+        for (int i = 0; i < table.values.size(); i++) {
+            indexes.add(i);
+        }
+
+        List<List<String>> newValues = table.values;
+
+        if (where.isEmpty())
+            throw new PleaseDoNotEreaseEverithinException("Not a where");
+
+        indexes = table.searchRows(where);
+        newValues = table.returnNewValues(initialTableColumns, delete);
+
+        for (List<String> list : newValues) {
+            for (int i = list.size() - 1; i >= 0; i--) {
+                if (indexes.contains(i)) {
+                    list.remove(i);
+                }
+            }
+        }
+
+        if (newValues.isEmpty())
+            throw new SQLSyntaxException("There are not columns with that name");
+
+        if (indexes.isEmpty())
+            throw new EmptySelectException("There are not rows to show");
+
+        table.writeTableToAFile(newValues, folder + File.separator + tableName + ".csv");
+        System.out.println(ConsoleColors.ANSI_BLUE + "Table updated successfully" + ConsoleColors.ANSI_RESET);
+    }
+
     public void select(Map<String, String> query) throws SQLSyntaxException, EmptySelectException {
         String select = "";
         String tableName = "";
@@ -152,9 +221,6 @@ public class CommandInterpreter {
 
             if (command.equalsIgnoreCase("where"))
                 where = value;
-
-            if (command.equalsIgnoreCase("select"))
-                select = value;
 
             if (command.equalsIgnoreCase("order by"))
                 order = value;
@@ -394,7 +460,7 @@ public class CommandInterpreter {
         private List<String> columns;
         private List<List<String>> values;
 
-        public Table(String tableName, List<String> columns, String tablePath) {
+        private Table(String tableName, List<String> columns, String tablePath) {
             this.tableName = tableName;
             this.columns = columns;
             this.values = new ArrayList<>();
@@ -403,33 +469,20 @@ public class CommandInterpreter {
                 String line;
                 boolean firstLine = true;
                 while ((line = br.readLine()) != null) {
-                    String[] valores = line.split(",");
+                    String[] values = line.split(",");
                     if (firstLine) {
-                        for (int i = 0; i < valores.length; i++) {
-                            values.add(new ArrayList<>());
+                        for (int i = 0; i < values.length; i++) {
+                            this.values.add(new ArrayList<>());
                         }
                         firstLine = false;
                     } else {
-                        for (int i = 0; i < valores.length; i++) {
-                            values.get(i).add(valores[i]);
+                        for (int i = 0; i < values.length; i++) {
+                            this.values.get(i).add(values[i]);
                         }
                     }
                 }
             } catch (IOException e) {
                 System.err.println("There was an error reading the table file");
-            }
-        }
-
-        private void printTable() {
-            for (String column : columns) {
-                System.out.printf("%20s", column);
-            }
-            System.out.println();
-            for (int column = 0; column < values.get(0).size(); column++) {
-                for (List<String> value : values) {
-                    System.out.printf("%20s", value.get(column));
-                }
-                System.out.println();
             }
         }
 
@@ -566,6 +619,31 @@ public class CommandInterpreter {
             }
         }
 
+        private void writeTableToAFile (List<List<String>> newValues, String csvPath) {
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(csvPath))) {
+                for (int i = 0; i < columns.size(); i++) {
+                    writer.write(columns.get(i));
+                    if (i < columns.size() - 1)
+                        writer.write(",");
+                    else
+                        writer.newLine();
+                }
+
+                for (int i = 0; i < newValues.get(0).size(); i++) {
+                    for (int j = 0; j < newValues.size(); j++) {
+                        writer.write(newValues.get(j).get(i));
+                        // writer.write(newValues.get(j).get(i));
+                        if (j < newValues.size() - 1) {
+                            writer.write(",");
+                        } else {
+                            writer.newLine();
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                System.err.println("Error printing file: " + e.getMessage());
+            }
+        }
 
         private String getTableName() {
             return tableName;
