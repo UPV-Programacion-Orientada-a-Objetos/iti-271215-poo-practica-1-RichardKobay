@@ -1,5 +1,6 @@
 package edu.upvictoria.fpoo.utils;
 
+import edu.upvictoria.fpoo.exceptions.EmptySelectException;
 import edu.upvictoria.fpoo.exceptions.NotADBException;
 import edu.upvictoria.fpoo.exceptions.SQLSyntaxException;
 
@@ -38,14 +39,56 @@ public class CommandInterpreter {
 
     public void readCommand() {
         String sentence = BrScanner.readMultipleLines();
-        Map<String, String> parsedQuery = parseSQLQuery(sentence);
+
         try {
-            actByQuery(parsedQuery);
+            if (sentence.trim().toLowerCase().startsWith("create table")) {
+                createTable(sentence.trim().replace("create table", "").replace(";", ""));
+                return;
+            }
+
+            if (sentence.trim().toLowerCase().startsWith("drop table")) {
+                dropTable(sentence.trim().replace("drop table", "").replace(";", "").trim());
+            }
+
+            if (sentence.trim().toLowerCase().startsWith("use")) {
+                try {
+                    use(sentence.trim().replace("use", "").replace(";", "").trim());
+                } catch (NotADBException e) {
+                    System.err.println(e.getMessage());
+                }
+                return;
+            }
+
+            if (sentence.trim().toLowerCase().startsWith("show tables")) {
+                showTables();
+                return;
+            }
+
+            if (sentence.trim().toLowerCase().startsWith("insert into")) {
+                insert(sentence.trim().replace("insert into", "").replace(";", "").trim());
+            }
+
+            if (sentence.trim().toLowerCase().startsWith("select")) {
+                Map<String, String> parsedQuery = parseSQLQuery(sentence);
+                try {
+                    select(parsedQuery);
+                } catch (SQLSyntaxException e) {
+                    System.err.println(e.getMessage());
+                } catch (EmptySelectException e) {
+                    System.out.println(ConsoleColors.ANSI_CYAN_BACKGROUND + ConsoleColors.ANSI_BLACK + e.getMessage() + ConsoleColors.ANSI_RESET);
+                }
+            }
+
         } catch (SQLSyntaxException e) {
             System.err.println(e.getMessage());
         }
     }
 
+
+//    for (Map.Entry<String, String> entry : query.entrySet()) {
+//        String command = entry.getKey();
+//        String value = entry.getValue();
+//    }
 
     /**
      * Check an SQL query, and, after that, will categorize the string in the different sql sentences
@@ -68,6 +111,17 @@ public class CommandInterpreter {
             return resultMap;
         }
 
+        if (sqlQuery.trim().toLowerCase().startsWith("select")) {
+            Pattern pattern = Pattern.compile("(?i)(SELECT|FROM|WHERE|ORDER BY|CREATE TABLE|INSERT INTO|UPDATE|DELETE|DROP TABLE|SHOW TABLES)\\s+(.*?)(?=\\s+(?i)(?:SELECT|FROM|WHERE|ORDER BY|CREATE TABLE|INSERT INTO|UPDATE|DELETE|DROP TABLE|SHOW TABLES)|;|$)");
+            Matcher matcher = pattern.matcher(sqlQuery);
+
+            while (matcher.find()) {
+                String key = matcher.group(1).toUpperCase();
+                String value = matcher.group(2).trim();
+                resultMap.put(key, value);
+            }
+        }
+
         Pattern pattern = Pattern.compile("(?i)(SELECT|FROM|WHERE|ORDER BY|CREATE TABLE|INSERT INTO|UPDATE|DELETE|DROP TABLE|SHOW TABLES)\\s+(.*?)(?=\\s+(?i)(?:SELECT|FROM|WHERE|ORDER BY|CREATE TABLE|INSERT INTO|UPDATE|DELETE|DROP TABLE|SHOW TABLES)|;|$)");
         Matcher matcher = pattern.matcher(sqlQuery);
 
@@ -80,60 +134,87 @@ public class CommandInterpreter {
         return resultMap;
     }
 
-    public void actByQuery(Map<String, String> query) throws SQLSyntaxException {
+    public void select(Map<String, String> query) throws SQLSyntaxException, EmptySelectException {
+        String select = "";
+        String tableName = "";
+        String where = "";
+        String order = "";
+
         for (Map.Entry<String, String> entry : query.entrySet()) {
             String command = entry.getKey();
             String value = entry.getValue();
 
-            if (command.equals("CREATE TABLE")) {
-                try {
-                    createTable(value);
-                } catch (SQLSyntaxException e) {
-                    System.err.println("SQLSyntaxException: " + e.getMessage());
-                }
-                return;
-            }
+            if (command.equalsIgnoreCase("select"))
+                select = value;
 
-            if (command.equals("DROP TABLE")) {
-                try {
-                    dropTable(value);
-                } catch (SQLSyntaxException e) {
-                    System.err.println("SQLSyntaxException: " + e.getMessage());
-                }
-                return;
-            }
+            if (command.equalsIgnoreCase("from"))
+                tableName = value;
 
-            if (command.equals("INSERT INTO")) {
-                try {
-                    insert(value);
-                } catch (SQLSyntaxException e) {
-                    System.err.println("SQLSyntaxException: " + e.getMessage());
-                }
-                return;
-            }
+            if (command.equalsIgnoreCase("where"))
+                where = value;
 
-            if (command.equalsIgnoreCase("USE")) {
-                try {
-                    use(value);
-                } catch (NotDirectoryException | FileNotFoundException | NoPermissionException | NotADBException e) {
-                    System.err.println(e.getMessage());
-                }
-                return;
-            }
+            if (command.equalsIgnoreCase("select"))
+                select = value;
 
-            if (command.equalsIgnoreCase("SHOW TABLES")) {
-                try {
-                    showTables();
-                } catch (Exception e) {
-                    System.err.println(e.getMessage());
-                }
-                return;
-            }
-            throw new SQLSyntaxException("Not a valid SQL syntax");
+            if (command.equalsIgnoreCase("order by"))
+                order = value;
         }
+
+        String tablePath = folder + File.separator + tableName + ".csv";
+        List<String> tableColumns = getTableColumns(tablePath);
+
+        Table table = new Table(tableName, tableColumns, tablePath);
+
+        List<Integer> indexes = new ArrayList<>();
+
+        for (int i = 0; i < table.values.size(); i++) {
+            indexes.add(i);
+        }
+
+        List<List<String>> newValues = table.values;
+
+        if (!where.isEmpty()) {
+            indexes = table.searchRows(where);
+            newValues = table.returnNewValues(tableColumns, select);
+
+            for (List<String> list : newValues) {
+                for (int i = list.size() - 1; i >= 0; i--) {
+                    if (!indexes.contains(i)) {
+                        list.remove(i);
+                    }
+                }
+            }
+
+            if (newValues.isEmpty())
+                throw new SQLSyntaxException("There are not columns with that name");
+        }
+
+        if (indexes.isEmpty())
+            throw new EmptySelectException("There are not rows to show");
+
+        if (!order.isEmpty()) {
+            String[] orderSplit = order.split(" ");
+            String orderBy = "asc";
+
+            if (orderSplit.length > 1)
+                orderBy = orderSplit[1].trim();
+
+            if (orderBy.equalsIgnoreCase("asc")) {
+                for (List<String> innerList : newValues) {
+                    Collections.sort(innerList);
+                }
+            } else {
+                for (List<String> innerList : newValues) {
+                    innerList.sort(Collections.reverseOrder());
+                }
+            }
+        }
+
+        List<Integer> columnIndexes = table.getColumnIndexes(tableColumns, select);
+        table.showValues(newValues, tableColumns, columnIndexes);
     }
 
-    public void showTables() {
+    public void showTables() throws SQLSyntaxException {
         List<String> tables = new ArrayList<>();
         try {
             Files.walk(Paths.get(this.folder.toURI()))
@@ -144,30 +225,30 @@ public class CommandInterpreter {
         }
 
         for (String table : tables) {
-            try {
-                List<String> tableColumns =  getTableColumns(table);
-                System.out.println("---------------TABLE---------------");
-                System.out.printf("Name: %29s\n", getTableName(table));
-                for (String column : tableColumns) {
-                    System.out.printf("Column: %27s\n", column);
-                }
-                System.out.println();
-            } catch (SQLSyntaxException e) {
-                System.err.println("SQLSyntaxException: " + e.getMessage());
+            List<String> tableColumns = getTableColumns(table);
+            System.out.println("---------------TABLE---------------");
+            System.out.printf("Name: %29s\n", getTableName(table));
+            for (String column : tableColumns) {
+                System.out.printf("Column: %27s\n", column);
             }
+            System.out.println();
         }
     }
 
-    public String getTableName (String path) {
+    public String getTableName(String path) {
         List<String> tableName = Arrays.asList(path.trim().replace(".csv", "").split("/"));
         return tableName.get(tableName.size() - 1);
     }
 
-    public void use(String folderPath) throws NotADBException, NotDirectoryException, FileNotFoundException, NoPermissionException {
+    public void use(String folderPath) throws NotADBException {
         if (!folderPath.endsWith("_db"))
             throw new NotADBException("The folder is not a known database");
-        this.folder = new IOUtils().openFolder(folderPath);
-        System.out.println(ConsoleColors.ANSI_BLUE + "Using " + folderPath + ConsoleColors.ANSI_RESET);
+        try {
+            this.folder = new IOUtils().openFolder(folderPath);
+            System.out.println(ConsoleColors.ANSI_BLUE + "Using " + folderPath + ConsoleColors.ANSI_RESET);
+        } catch (NotDirectoryException | FileNotFoundException | NoPermissionException e) {
+            System.err.println(e.getMessage());
+        }
     }
 
     public void createTable(String tableParams) throws SQLSyntaxException {
@@ -311,26 +392,203 @@ public class CommandInterpreter {
     private static class Table {
         private String tableName;
         private List<String> columns;
+        private List<List<String>> values;
 
-        public Table(String tableName, List<String> columns) {
+        public Table(String tableName, List<String> columns, String tablePath) {
             this.tableName = tableName;
             this.columns = columns;
+            this.values = new ArrayList<>();
+
+            try (BufferedReader br = new BufferedReader(new FileReader(tablePath))) {
+                String line;
+                boolean firstLine = true;
+                while ((line = br.readLine()) != null) {
+                    String[] valores = line.split(",");
+                    if (firstLine) {
+                        for (int i = 0; i < valores.length; i++) {
+                            values.add(new ArrayList<>());
+                        }
+                        firstLine = false;
+                    } else {
+                        for (int i = 0; i < valores.length; i++) {
+                            values.get(i).add(valores[i]);
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                System.err.println("There was an error reading the table file");
+            }
         }
 
-        public String getTableName() {
+        private void printTable() {
+            for (String column : columns) {
+                System.out.printf("%20s", column);
+            }
+            System.out.println();
+            for (int column = 0; column < values.get(0).size(); column++) {
+                for (List<String> value : values) {
+                    System.out.printf("%20s", value.get(column));
+                }
+                System.out.println();
+            }
+        }
+
+        private List<Integer> searchRows(String input) throws SQLSyntaxException {
+            List<Integer> indexes = new ArrayList<>();
+            String[] conditions = input.split("(?i)\\s+(OR|AND)\\s+");
+
+            for (String condition : conditions) {
+                Pattern pattern = Pattern.compile("\\s*(\\w+)\\s*([<>]=?|=)\\s*('([^']*)'|\\w+)\\s*");
+                Matcher matcher = pattern.matcher(condition);
+
+                if (!matcher.find())
+                    throw new SQLSyntaxException("Not a valid SQL Syntax");
+
+                String columnName = matcher.group(1);
+                String operator = matcher.group(2);
+                String value = matcher.group(4) != null ? matcher.group(4) : matcher.group(3);
+
+                int columnIndex = this.columns.indexOf(columnName);
+
+                if (columnIndex == -1)
+                    throw new SQLSyntaxException("Could not get a column named " + columnName);
+
+                for (int i = 0; i < values.get(columnIndex).size(); i++) {
+                    String actualValue = values.get(columnIndex).get(i);
+
+                    if (operator.equalsIgnoreCase("=")) {
+                        if (actualValue.equals(value)) {
+                            indexes.add(i);
+                        }
+                    } else if (operator.equalsIgnoreCase("!=")) {
+                        if (!actualValue.equals(value)) {
+                            indexes.add(i);
+                        }
+                    } else if (operator.equals("<")) {
+                        if (isNumeric(actualValue) && isNumeric(value)) {
+                            double numActual = Double.parseDouble(actualValue);
+                            double numValor = Double.parseDouble(value);
+                            if (numActual < numValor) {
+                                indexes.add(i);
+                            }
+                        }
+                    } else if (operator.equals(">")) {
+                        if (isNumeric(actualValue) && isNumeric(value)) {
+                            double numActual = Double.parseDouble(actualValue);
+                            double numValor = Double.parseDouble(value);
+                            if (numActual > numValor) {
+                                indexes.add(i);
+                            }
+                        }
+                    } else if (operator.equalsIgnoreCase("<=")) {
+                        if (isNumeric(actualValue) && isNumeric(value)) {
+                            double numActual = Double.parseDouble(actualValue);
+                            double numValor = Double.parseDouble(value);
+                            if (numActual <= numValor) {
+                                indexes.add(i);
+                            }
+                        }
+                    } else if (operator.equalsIgnoreCase(">=")) {
+                        if (isNumeric(actualValue) && isNumeric(value)) {
+                            double numActual = Double.parseDouble(actualValue);
+                            double numValor = Double.parseDouble(value);
+                            if (numActual >= numValor) {
+                                indexes.add(i);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return indexes;
+        }
+
+        public boolean isNumeric(String str) {
+            if (str == null || str.isEmpty()) {
+                return false;
+            }
+            for (char c : str.toCharArray()) {
+                if (!Character.isDigit(c) && c != '.' && c != '-') {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        List<Integer> getColumnIndexes(List<String> columns, String select) {
+            List<Integer> columnIndexes = new ArrayList<>();
+
+            if (select.equalsIgnoreCase("*")) {
+                for (int i = 0; i < columns.size(); i++) {
+                    columnIndexes.add(i);
+                }
+            } else {
+                List<String> columnNames = Arrays.asList(select.trim().split(","));
+                for (String columnName : columnNames) {
+                    columnName.trim();
+                }
+                for (int i = 0; i < columns.size(); i++) {
+                    for (String columnName : columnNames) {
+                        if (columnName.equalsIgnoreCase(columns.get(i))) {
+                            columnIndexes.add(i);
+                        }
+                    }
+                }
+            }
+
+            return columnIndexes;
+        }
+
+        private List<List<String>> returnNewValues(List<String> columns, String select) {
+            List<Integer> columnIndexes = getColumnIndexes(columns, select);
+
+
+            List<List<String>> newValues = new ArrayList<>();
+            for (int column : columnIndexes) {
+                newValues.add(values.get(column));
+            }
+
+            return newValues;
+        }
+
+        public void showValues(List<List<String>> newValues, List<String> columns, List<Integer> columnIndexes) {
+            for (int columnIndex : columnIndexes) {
+                System.out.printf("%20s", columns.get(columnIndex));
+            }
+
+            System.out.println();
+
+            for (int column = 0; column < newValues.get(0).size(); column++) {
+                for (List<String> value : newValues) {
+                    System.out.printf("%20s", value.get(column));
+                }
+                System.out.println();
+            }
+        }
+
+
+        private String getTableName() {
             return tableName;
         }
 
-        public void setTableName(String tableName) {
+        private void setTableName(String tableName) {
             this.tableName = tableName;
         }
 
-        public List<String> getColumns() {
+        private List<String> getColumns() {
             return columns;
         }
 
-        public void setColumns(List<String> columns) {
+        private void setColumns(List<String> columns) {
             this.columns = columns;
+        }
+
+        private List<List<String>> getValues() {
+            return values;
+        }
+
+        private void setValues(List<List<String>> values) {
+            this.values = values;
         }
     }
 }
