@@ -1,13 +1,9 @@
 package edu.upvictoria.fpoo;
 
 import edu.upvictoria.fpoo.exceptions.NotADBException;
-import edu.upvictoria.fpoo.utils.BrScanner;
 import edu.upvictoria.fpoo.utils.CommandInterpreter;
-import edu.upvictoria.fpoo.utils.FileUtils;
-import edu.upvictoria.fpoo.utils.IOUtils;
 
 import javax.naming.NoPermissionException;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.nio.file.NotDirectoryException;
 
