@@ -19,14 +19,19 @@ public class CommandInterpreter {
     private File folder;
 
     public CommandInterpreter(String folderPath) throws NotDirectoryException, FileNotFoundException, NoPermissionException, NotADBException {
-        if (!folderPath.endsWith("_db"))
-            throw new NotADBException("The folder is not a known database");
+        if (!folderPath.endsWith("_db")) {
+            this.readFolder();
+        }
         this.folder = new IOUtils().openFolder(folderPath);
     }
 
     public void readFolder() {
         System.out.println("Give me the folder path");
         String folderPath = BrScanner.readLine();
+        if (!folderPath.endsWith("_db")) {
+            System.err.println("The folder is not a known database");
+            this.readFolder();
+        }
         boolean directoryWorks = false;
         do {
             try {
